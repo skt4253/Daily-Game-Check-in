@@ -25,6 +25,7 @@ HOYO_GAMES = [
 def hoyo_checkin(name, url, act_id):
     r = requests.post(url, headers=HOYO_HEADERS,
                       json={"act_id": act_id, "lang": "ko-kr"})
+    print(f"{name} 응답: {r.status_code} / {r.text[:150]}")
     code = r.json().get("retcode", -1)
     if code == 0:
         return f"✅ {name}: 출석 완료"
