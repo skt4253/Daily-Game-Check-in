@@ -7,23 +7,25 @@ SK_GAME_ROLE = os.environ["SK_GAME_ROLE"]
 TG_TOKEN     = os.environ["TELEGRAM_BOT_TOKEN"]
 TG_CHAT      = os.environ["TELEGRAM_CHAT_ID"]
 
-HOYO_HEADERS = {
-    "Cookie": HOYO_COOKIE,
-    "Content-Type": "application/json",
-    "x-rpc-app_version": "2.34.1",
-    "x-rpc-client_type": "5",
-    "x-rpc-language": "ko-kr",
-    "Referer": "https://act.hoyolab.com",
-    "Origin": "https://act.hoyolab.com",
-}
 HOYO_GAMES = [
-    ("원신",          "https://sg-hk4e-api.hoyolab.com/event/sol/sign",            "e202102251931481"),
-    ("붕괴 스타레일",  "https://sg-public-api.hoyolab.com/event/luna/os/sign",      "e202303301540311"),
-    ("젠레스 존 제로", "https://sg-act-nap-api.hoyolab.com/event/luna/zzz/os/sign", "e202406031448091"),
+    ("원신",          "https://sg-hk4e-api.hoyolab.com/event/sol/sign",            "e202102251931481", "https://act.hoyolab.com/ys/event/signin-sea-v3/index.html?act_id=e202102251931481"),
+    ("붕괴 스타레일",  "https://sg-public-api.hoyolab.com/event/luna/os/sign",      "e202303301540311", "https://act.hoyolab.com/bbs/event/signin/hkrpg/e202303301540311.html"),
+    ("젠레스 존 제로", "https://sg-act-nap-api.hoyolab.com/event/luna/zzz/os/sign", "e202406031448091", "https://act.hoyolab.com/bbs/event/signin/zzz/e202406031448091.html"),
 ]
 
-def hoyo_checkin(name, url, act_id):
-    r = requests.post(url, headers=HOYO_HEADERS,
+def make_headers(referer):
+    return {
+        "Cookie": HOYO_COOKIE,
+        "Content-Type": "application/json",
+        "x-rpc-app_version": "2.34.1",
+        "x-rpc-client_type": "5",
+        "x-rpc-language": "ko-kr",
+        "Referer": referer,
+        "Origin": "https://act.hoyolab.com",
+    }
+
+def hoyo_checkin(name, url, act_id, referer):
+    r = requests.post(url, headers=make_headers(referer),
                       json={"act_id": act_id, "lang": "ko-kr"})
     print(f"{name} 응답: {r.status_code} / {r.text[:150]}")
     code = r.json().get("retcode", -1)
@@ -68,8 +70,8 @@ def send_telegram(msg):
 
 if __name__ == "__main__":
     results = []
-    for name, url, act_id in HOYO_GAMES:
-        results.append(hoyo_checkin(name, url, act_id))
+    for name, url, act_id, referer in HOYO_GAMES:
+        results.append(hoyo_checkin(name, url, act_id, referer))
         time.sleep(1)
     results.append(sk_checkin())
 
