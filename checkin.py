@@ -17,7 +17,7 @@ HOYO_HEADERS = {
     "Origin": "https://act.hoyolab.com",
 }
 HOYO_GAMES = [
-    ("원신",          "https://sg-hk4e-api.hoyolab.com/event/sol/sign",            "e202102251931551"),
+    ("원신",          "https://sg-hk4e-api.hoyolab.com/event/sol/sign",            "e202102251931481"),
     ("붕괴 스타레일",  "https://sg-public-api.hoyolab.com/event/luna/os/sign",      "e202303301540311"),
     ("젠레스 존 제로", "https://sg-act-nap-api.hoyolab.com/event/luna/zzz/os/sign", "e202406031448091"),
 ]
