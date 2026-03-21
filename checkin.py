@@ -58,13 +58,17 @@ def sk_checkin():
         "dId": "",
     }
     r = requests.post(f"https://zonai.skport.com{path}", headers=headers, data=body)
-    code = r.json().get("code", -1)
-    if code == 0:
-        return "✅ 엔드필드: 출석 완료"
-    elif code == 1:
-        return "☑️ 엔드필드: 이미 출석함"
-    else:
-        return f"❌ 엔드필드: 실패 ({r.text[:80]})"
+    print(f"SKPORT 응답: {r.status_code} / {r.text}")
+    try:
+        code = r.json().get("code", -1)
+        if code == 0:
+            return "✅ 엔드필드: 출석 완료"
+        elif code == 1:
+            return "☑️ 엔드필드: 이미 출석함"
+        else:
+            return f"❌ 엔드필드: 실패 ({r.text[:80]})"
+    except Exception:
+        return f"❌ 엔드필드: 응답 파싱 실패 ({r.text[:80]})"
 
 def send_telegram(msg):
     requests.post(f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage",
