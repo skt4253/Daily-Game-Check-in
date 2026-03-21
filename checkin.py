@@ -1,14 +1,12 @@
-import os, time, hmac, hashlib, json, requests
-from datetime import datetime
+import os, time, hashlib, json, requests
+from datetime import datetime, timezone, timedelta
 
-LTOKEN    = os.environ["HOYO_LTOKEN_V2"]
-LTUID     = os.environ["HOYO_LTUID_V2"]
-SK_CRED   = os.environ["SK_CRED"]
-SK_TOKEN  = os.environ["SK_TOKEN"]
-SK_ID     = os.environ["SK_GAME_ID"]
-TG_TOKEN  = os.environ["TELEGRAM_BOT_TOKEN"]
-TG_CHAT   = os.environ["TELEGRAM_CHAT_ID"]
-SK_SERVER = "2"
+LTOKEN       = os.environ["HOYO_LTOKEN_V2"]
+LTUID        = os.environ["HOYO_LTUID_V2"]
+SK_CRED      = os.environ["SK_CRED"]
+SK_GAME_ROLE = os.environ["SK_GAME_ROLE"]
+TG_TOKEN     = os.environ["TELEGRAM_BOT_TOKEN"]
+TG_CHAT      = os.environ["TELEGRAM_CHAT_ID"]
 
 HOYO_COOKIE = f"ltoken_v2={LTOKEN}; ltuid_v2={LTUID};"
 HOYO_HEADERS = {
@@ -37,33 +35,28 @@ def hoyo_checkin(name, url, act_id):
     else:
         return f"❌ {name}: 실패 (retcode={code})"
 
-def sk_sign(path, body, token):
-    ts = str(int(time.time() * 1000))
-    header_json = json.dumps({"platform":"3","timestamp":ts,"dId":"","vName":"1.0.0"}, separators=(',',':'))
-    msg = path + body + ts + header_json
-    h = hmac.new(token.encode(), msg.encode(), hashlib.sha256).hexdigest()
-    return hashlib.md5(h.encode()).hexdigest(), ts
-
 def sk_checkin():
-    path = "/web/v1/user/game_role/sign"
-    body = json.dumps({"id": SK_ID, "server": SK_SERVER}, separators=(',',':'))
-    sign, ts = sk_sign(path, body, SK_TOKEN)
+    ts = str(int(time.time()))
     headers = {
-        "cred": SK_CRED,
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Accept": "*/*",
         "Content-Type": "application/json",
-        "sign": sign,
-        "timestamp": ts,
+        "Referer": "https://game.skport.com/",
+        "Origin": "https://game.skport.com",
+        "cred": SK_CRED,
+        "sk-game-role": SK_GAME_ROLE,
         "platform": "3",
         "vName": "1.0.0",
-        "dId": "",
+        "timestamp": ts,
+        "sign": hashlib.md5(ts.encode()).hexdigest(),
     }
-    r = requests.post(f"https://zonai.skport.com{path}", headers=headers, data=body)
+    r = requests.post("https://zonai.skport.com/web/v1/game/endfield/attendance", headers=headers)
     print(f"SKPORT 응답: {r.status_code} / {r.text}")
     try:
         code = r.json().get("code", -1)
         if code == 0:
             return "✅ 엔드필드: 출석 완료"
-        elif code == 1:
+        elif code == 10001:
             return "☑️ 엔드필드: 이미 출석함"
         else:
             return f"❌ 엔드필드: 실패 ({r.text[:80]})"
@@ -81,7 +74,8 @@ if __name__ == "__main__":
         time.sleep(1)
     results.append(sk_checkin())
 
-    now = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+    KST = timezone(timedelta(hours=9))
+    now = datetime.now(KST).strftime("%Y-%m-%d %H:%M KST")
     msg = f"🎮 일일 출석체크 ({now})\n\n" + "\n".join(results)
     send_telegram(msg)
     print(msg)
