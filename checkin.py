@@ -3,12 +3,13 @@ from datetime import datetime, timezone, timedelta
 
 LTOKEN       = os.environ["HOYO_LTOKEN_V2"]
 LTUID        = os.environ["HOYO_LTUID_V2"]
+MID          = os.environ["HOYO_MID_V2"]
 SK_CRED      = os.environ["SK_CRED"]
 SK_GAME_ROLE = os.environ["SK_GAME_ROLE"]
 TG_TOKEN     = os.environ["TELEGRAM_BOT_TOKEN"]
 TG_CHAT      = os.environ["TELEGRAM_CHAT_ID"]
 
-HOYO_COOKIE = f"ltoken_v2={LTOKEN}; ltuid_v2={LTUID};"
+HOYO_COOKIE = f"ltoken_v2={LTOKEN}; ltuid_v2={LTUID}; account_mid_v2={MID};"
 HOYO_HEADERS = {
     "Cookie": HOYO_COOKIE,
     "Content-Type": "application/json",
