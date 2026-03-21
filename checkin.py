@@ -1,9 +1,10 @@
-import os, time, hashlib, requests
+import os, time, hmac, hashlib, json, requests
 from datetime import datetime, timezone, timedelta
 
 HOYO_COOKIE  = os.environ["HOYO_COOKIE"]
 SK_CRED      = os.environ["SK_CRED"]
 SK_GAME_ROLE = os.environ["SK_GAME_ROLE"]
+SK_TOKEN     = os.environ["SK_TOKEN"]
 TG_TOKEN     = os.environ["TELEGRAM_BOT_TOKEN"]
 TG_CHAT      = os.environ["TELEGRAM_CHAT_ID"]
 
@@ -36,8 +37,17 @@ def hoyo_checkin(name, url, act_id, referer):
     else:
         return f"❌ {name}: 실패 (retcode={code})"
 
+def sk_sign(path, body, token):
+    ts = str(int(time.time() * 1000))
+    header_json = json.dumps({"platform":"3","timestamp":ts,"dId":"","vName":"1.0.0"}, separators=(',',':'))
+    msg = path + body + ts + header_json
+    h = hmac.new(token.encode(), msg.encode(), hashlib.sha256).hexdigest()
+    return hashlib.md5(h.encode()).hexdigest(), ts
+
 def sk_checkin():
-    ts = str(int(time.time()))
+    path = "/web/v1/game/endfield/attendance"
+    body = ""
+    sign, ts = sk_sign(path, body, SK_TOKEN)
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
         "Accept": "*/*",
@@ -49,9 +59,9 @@ def sk_checkin():
         "platform": "3",
         "vName": "1.0.0",
         "timestamp": ts,
-        "sign": hashlib.md5(ts.encode()).hexdigest(),
+        "sign": sign,
     }
-    r = requests.post("https://zonai.skport.com/web/v1/game/endfield/attendance", headers=headers)
+    r = requests.post(f"https://zonai.skport.com{path}", headers=headers)
     print(f"SKPORT 응답: {r.status_code} / {r.text}")
     try:
         code = r.json().get("code", -1)
