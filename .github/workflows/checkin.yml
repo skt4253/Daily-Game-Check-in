@@ -16,9 +16,7 @@ jobs:
       - run: pip install requests
       - run: python checkin.py
         env:
-          HOYO_LTOKEN_V2: ${{ secrets.HOYO_LTOKEN_V2 }}
-          HOYO_LTUID_V2: ${{ secrets.HOYO_LTUID_V2 }}
-          HOYO_MID_V2: ${{ secrets.HOYO_MID_V2 }}
+          HOYO_COOKIE: ${{ secrets.HOYO_COOKIE }}
           SK_CRED: ${{ secrets.SK_CRED }}
           SK_GAME_ROLE: ${{ secrets.SK_GAME_ROLE }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
