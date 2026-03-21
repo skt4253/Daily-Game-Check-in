@@ -19,5 +19,6 @@ jobs:
           HOYO_COOKIE: ${{ secrets.HOYO_COOKIE }}
           SK_CRED: ${{ secrets.SK_CRED }}
           SK_GAME_ROLE: ${{ secrets.SK_GAME_ROLE }}
+          SK_TOKEN: ${{ secrets.SK_TOKEN }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
