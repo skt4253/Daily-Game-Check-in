@@ -4,7 +4,7 @@ from datetime import datetime, timezone, timedelta
 HOYO_COOKIE  = os.environ["HOYO_COOKIE"]
 SK_CRED      = os.environ["SK_CRED"]
 SK_GAME_ROLE = os.environ["SK_GAME_ROLE"]
-SK_TOKEN     = os.environ["SK_TOKEN"]
+SK_TOKEN     = os.environ.get("SK_TOKEN", "")
 TG_TOKEN     = os.environ["TELEGRAM_BOT_TOKEN"]
 TG_CHAT      = os.environ["TELEGRAM_CHAT_ID"]
 
@@ -14,7 +14,17 @@ HOYO_GAMES = [
     ("젠레스 존 제로", "https://sg-act-nap-api.hoyolab.com/event/luna/zzz/os/sign", "e202406031448091", "https://act.hoyolab.com/bbs/event/signin/zzz/e202406031448091.html"),
 ]
 
-def make_headers(referer):
+SK_BASE_HEADERS = {
+    "Accept": "*/*",
+    "Content-Type": "application/json",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+    "Referer": "https://game.skport.com/",
+    "Origin": "https://game.skport.com",
+    "platform": "3",
+    "vName": "1.0.0",
+}
+
+def make_hoyo_headers(referer):
     return {
         "Cookie": HOYO_COOKIE,
         "Content-Type": "application/json",
@@ -26,7 +36,7 @@ def make_headers(referer):
     }
 
 def hoyo_checkin(name, url, act_id, referer):
-    r = requests.post(url, headers=make_headers(referer),
+    r = requests.post(url, headers=make_hoyo_headers(referer),
                       json={"act_id": act_id, "lang": "ko-kr"})
     print(f"{name} 응답: {r.status_code} / {r.text[:150]}")
     code = r.json().get("retcode", -1)
@@ -37,20 +47,17 @@ def hoyo_checkin(name, url, act_id, referer):
     else:
         return f"❌ {name}: 실패 (retcode={code})"
 
-def sk_refresh_token():
+def sk_generate_sign(path, body, token):
     ts = str(int(time.time()))
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Accept": "*/*",
-        "Content-Type": "application/json",
-        "Referer": "https://game.skport.com/",
-        "Origin": "https://game.skport.com",
-        "cred": SK_CRED,
-        "platform": "3",
-        "vName": "1.0.0",
-        "timestamp": ts,
-    }
-    r = requests.post("https://zonai.skport.com/web/v1/auth/refresh", headers=headers)
+    header_obj = {"platform": "3", "timestamp": ts, "dId": "", "vName": "1.0.0"}
+    string_to_sign = path + body + ts + json.dumps(header_obj, separators=(',', ':'))
+    hmac_hex = hmac.new(token.encode(), string_to_sign.encode(), hashlib.sha256).hexdigest()
+    sign = hashlib.md5(hmac_hex.encode()).hexdigest()
+    return sign, ts
+
+def sk_refresh_token():
+    r = requests.get("https://zonai.skport.com/web/v1/auth/refresh",
+                     headers={**SK_BASE_HEADERS, "cred": SK_CRED})
     print(f"SKPORT 토큰 갱신: {r.status_code} / {r.text[:150]}")
     try:
         data = r.json()
@@ -58,41 +65,46 @@ def sk_refresh_token():
             return data["data"]["token"]
     except Exception:
         pass
-    return SK_TOKEN  # 갱신 실패시 기존 토큰 사용
-
-def sk_sign(path, body, token):
-    ts = str(int(time.time()))
-    header_json = json.dumps({"platform":"3","timestamp":ts,"dId":"","vName":"1.0.0"}, separators=(',',':'))
-    msg = path + body + ts + header_json
-    h = hmac.new(token.encode(), msg.encode(), hashlib.sha256).hexdigest()
-    return hashlib.md5(h.encode()).hexdigest(), ts
+    return None
 
 def sk_checkin():
-    token = sk_refresh_token()
+    token = SK_TOKEN or sk_refresh_token()
+    if not token:
+        return "❌ 엔드필드: 토큰 갱신 실패"
+
     path = "/web/v1/game/endfield/attendance"
-    body = ""
-    sign, ts = sk_sign(path, body, token)
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Accept": "*/*",
-        "Content-Type": "application/json",
-        "Referer": "https://game.skport.com/",
-        "Origin": "https://game.skport.com",
-        "cred": SK_CRED,
-        "sk-game-role": SK_GAME_ROLE,
-        "platform": "3",
-        "vName": "1.0.0",
-        "timestamp": ts,
-        "sign": sign,
-    }
-    r = requests.post(f"https://zonai.skport.com{path}", headers=headers)
-    print(f"SKPORT 출석 응답: {r.status_code} / {r.text}")
+
+    def attempt(tok):
+        sign, ts = sk_generate_sign(path, "", tok)
+        headers = {
+            **SK_BASE_HEADERS,
+            "cred": SK_CRED,
+            "sk-game-role": SK_GAME_ROLE,
+            "timestamp": ts,
+            "sign": sign,
+        }
+        r = requests.post(f"https://zonai.skport.com{path}", headers=headers)
+        print(f"SKPORT 출석 응답: {r.status_code} / {r.text}")
+        return r
+
+    r = attempt(token)
     try:
         code = r.json().get("code", -1)
         if code == 0:
             return "✅ 엔드필드: 출석 완료"
         elif code == 10001:
             return "☑️ 엔드필드: 이미 출석함"
+        elif code == 10000:
+            new_token = sk_refresh_token()
+            if new_token:
+                r2 = attempt(new_token)
+                code2 = r2.json().get("code", -1)
+                if code2 == 0:
+                    return "✅ 엔드필드: 출석 완료"
+                elif code2 == 10001:
+                    return "☑️ 엔드필드: 이미 출석함"
+                return f"❌ 엔드필드: 실패 ({r2.text[:80]})"
+            return "❌ 엔드필드: 토큰 갱신 실패"
         else:
             return f"❌ 엔드필드: 실패 ({r.text[:80]})"
     except Exception:
