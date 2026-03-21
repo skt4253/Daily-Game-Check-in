@@ -270,7 +270,3 @@ repo → **Actions** → **Daily Check-in** → **Run workflow** → **Run workf
 - SKPORT `SK_CRED` 값은 로그아웃 시 만료되므로 재로그인 후 갱신 필요
 - HoYoLAB 쿠키도 주기적으로 만료될 수 있으므로 출석 실패 알림 시 갱신 필요
 - **Secrets에 저장된 값은 절대 외부에 공유하지 마세요**
-
-## 📄 라이선스
-
-MIT License
