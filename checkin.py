@@ -9,9 +9,9 @@ TG_TOKEN     = os.environ["TELEGRAM_BOT_TOKEN"]
 TG_CHAT      = os.environ["TELEGRAM_CHAT_ID"]
 
 HOYO_GAMES = [
-    ("원신",          "https://sg-hk4e-api.hoyolab.com/event/sol/sign",             "e202102251931481", "https://act.hoyolab.com/ys/event/signin-sea-v3/index.html?act_id=e202102251931481"),
-    ("붕괴 스타레일",  "https://sg-public-api.hoyolab.com/event/luna/os/sign",       "e202303301540311", "https://act.hoyolab.com/bbs/event/signin/hkrpg/e202303301540311.html"),
-    ("젠레스 존 제로", "https://sg-public-api.hoyolab.com/event/luna/zzz/os/sign",   "e202406031448091", "https://act.hoyolab.com/bbs/event/signin/zzz/e202406031448091.html"),
+    ("원신",          "https://sg-hk4e-api.hoyolab.com/event/sol/sign",           "e202102251931481", "https://act.hoyolab.com/ys/event/signin-sea-v3/index.html?act_id=e202102251931481", {}),
+    ("붕괴 스타레일",  "https://sg-public-api.hoyolab.com/event/luna/os/sign",     "e202303301540311", "https://act.hoyolab.com/bbs/event/signin/hkrpg/e202303301540311.html",             {}),
+    ("젠레스 존 제로", "https://sg-public-api.hoyolab.com/event/luna/zzz/os/sign", "e202406031448091", "https://act.hoyolab.com/bbs/event/signin/zzz/e202406031448091.html",               {"x-rpc-signgame": "zzz"}),
 ]
 
 SK_BASE_HEADERS = {
@@ -24,7 +24,7 @@ SK_BASE_HEADERS = {
     "vName": "1.0.0",
 }
 
-def make_hoyo_headers(referer):
+def make_hoyo_headers(referer, extra={}):
     return {
         "Cookie": HOYO_COOKIE,
         "Content-Type": "application/json",
@@ -33,10 +33,11 @@ def make_hoyo_headers(referer):
         "x-rpc-language": "ko-kr",
         "Referer": referer,
         "Origin": "https://act.hoyolab.com",
+        **extra,
     }
 
-def hoyo_checkin(name, url, act_id, referer):
-    r = requests.post(url, headers=make_hoyo_headers(referer),
+def hoyo_checkin(name, url, act_id, referer, extra):
+    r = requests.post(url, headers=make_hoyo_headers(referer, extra),
                       json={"act_id": act_id, "lang": "ko-kr"})
     print(f"{name} 응답: {r.status_code} / {r.text[:150]}")
     code = r.json().get("retcode", -1)
@@ -116,8 +117,8 @@ def send_telegram(msg):
 
 if __name__ == "__main__":
     results = []
-    for name, url, act_id, referer in HOYO_GAMES:
-        results.append(hoyo_checkin(name, url, act_id, referer))
+    for name, url, act_id, referer, extra in HOYO_GAMES:
+        results.append(hoyo_checkin(name, url, act_id, referer, extra))
         time.sleep(1)
     results.append(sk_checkin())
 
