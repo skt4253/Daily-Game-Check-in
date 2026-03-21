@@ -19,7 +19,6 @@ jobs:
           HOYO_LTOKEN_V2: ${{ secrets.HOYO_LTOKEN_V2 }}
           HOYO_LTUID_V2: ${{ secrets.HOYO_LTUID_V2 }}
           SK_CRED: ${{ secrets.SK_CRED }}
-          SK_TOKEN: ${{ secrets.SK_TOKEN }}
-          SK_GAME_ID: ${{ secrets.SK_GAME_ID }}
+          SK_GAME_ROLE: ${{ secrets.SK_GAME_ROLE }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
