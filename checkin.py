@@ -9,9 +9,9 @@ TG_TOKEN     = os.environ["TELEGRAM_BOT_TOKEN"]
 TG_CHAT      = os.environ["TELEGRAM_CHAT_ID"]
 
 HOYO_GAMES = [
-    ("원신",          "https://sg-hk4e-api.hoyolab.com/event/sol/sign",            "e202102251931481", "https://act.hoyolab.com/ys/event/signin-sea-v3/index.html?act_id=e202102251931481"),
-    ("붕괴 스타레일",  "https://sg-public-api.hoyolab.com/event/luna/os/sign",      "e202303301540311", "https://act.hoyolab.com/bbs/event/signin/hkrpg/e202303301540311.html"),
-    ("젠레스 존 제로", "https://sg-act-nap-api.hoyolab.com/event/luna/zzz/os/sign", "e202406031448091", "https://act.hoyolab.com/bbs/event/signin/zzz/e202406031448091.html"),
+    ("원신",          "https://sg-hk4e-api.hoyolab.com/event/sol/sign",             "e202102251931481", "https://act.hoyolab.com/ys/event/signin-sea-v3/index.html?act_id=e202102251931481"),
+    ("붕괴 스타레일",  "https://sg-public-api.hoyolab.com/event/luna/os/sign",       "e202303301540311", "https://act.hoyolab.com/bbs/event/signin/hkrpg/e202303301540311.html"),
+    ("젠레스 존 제로", "https://sg-public-api.hoyolab.com/event/luna/zzz/os/sign",   "e202406031448091", "https://act.hoyolab.com/bbs/event/signin/zzz/e202406031448091.html"),
 ]
 
 SK_BASE_HEADERS = {
