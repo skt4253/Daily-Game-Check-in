@@ -8,7 +8,7 @@ SK_TOKEN  = os.environ["SK_TOKEN"]
 SK_ID     = os.environ["SK_GAME_ID"]
 TG_TOKEN  = os.environ["TELEGRAM_BOT_TOKEN"]
 TG_CHAT   = os.environ["TELEGRAM_CHAT_ID"]
-SK_SERVER = "2"  # 아시아
+SK_SERVER = "2"
 
 HOYO_COOKIE = f"ltoken_v2={LTOKEN}; ltuid_v2={LTUID};"
 HOYO_HEADERS = {
@@ -21,9 +21,9 @@ HOYO_HEADERS = {
     "Origin": "https://act.hoyolab.com",
 }
 HOYO_GAMES = [
-    ("원신",          "https://sg-hk4e-api.hoyolab.com/event/sol/sign",             "e202102251931551"),
-    ("붕괴 스타레일",  "https://sg-public-api.hoyolab.com/event/luna/os/sign",       "e202303301540311"),
-    ("젠레스 존 제로", "https://sg-act-nap-api.hoyolab.com/event/luna/zzz/os/sign",  "e202406031448091"),
+    ("원신",          "https://sg-hk4e-api.hoyolab.com/event/sol/sign",            "e202102251931551"),
+    ("붕괴 스타레일",  "https://sg-public-api.hoyolab.com/event/luna/os/sign",      "e202303301540311"),
+    ("젠레스 존 제로", "https://sg-act-nap-api.hoyolab.com/event/luna/zzz/os/sign", "e202406031448091"),
 ]
 
 def hoyo_checkin(name, url, act_id):
@@ -81,16 +81,3 @@ if __name__ == "__main__":
     msg = f"🎮 일일 출석체크 ({now})\n\n" + "\n".join(results)
     send_telegram(msg)
     print(msg)
-```
-
-우상단 **Commit changes** → **Commit changes** 클릭
-
----
-
-### 2-2. workflow 파일 생성
-
-repo 메인 페이지 → **Add file** → **Create new file**
-
-파일명 입력란에 아래를 **그대로** 입력 (슬래시 치면 폴더로 인식됨):
-```
-.github/workflows/checkin.yml
