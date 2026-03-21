@@ -38,7 +38,7 @@ def hoyo_checkin(name, url, act_id, referer):
         return f"❌ {name}: 실패 (retcode={code})"
 
 def sk_sign(path, body, token):
-    ts = str(int(time.time() * 1000))
+    ts = str(int(time.time()))  # 초 단위
     header_json = json.dumps({"platform":"3","timestamp":ts,"dId":"","vName":"1.0.0"}, separators=(',',':'))
     msg = path + body + ts + header_json
     h = hmac.new(token.encode(), msg.encode(), hashlib.sha256).hexdigest()
