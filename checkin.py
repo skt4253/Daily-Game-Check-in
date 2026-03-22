@@ -39,12 +39,9 @@ def make_hoyo_headers(referer, extra={}):
 def hoyo_checkin(name, url, act_id, referer, extra):
     r = requests.post(url, headers=make_hoyo_headers(referer, extra),
                       json={"act_id": act_id, "lang": "ko-kr"})
-    # print(f"{name} 응답: {r.status_code} / {r.text[:150]}")
     code = r.json().get("retcode", -1)
-    if code == 0:
+    if code in (0, -5003):
         return f"✅ {name}: 출석 완료"
-    elif code == -5003:
-        return f"☑️ {name}: 이미 출석함"
     else:
         return f"❌ {name}: 실패 (retcode={code})"
 
@@ -59,7 +56,6 @@ def sk_generate_sign(path, body, token):
 def sk_refresh_token():
     r = requests.get("https://zonai.skport.com/web/v1/auth/refresh",
                      headers={**SK_BASE_HEADERS, "cred": SK_CRED})
-    # print(f"SKPORT 토큰 갱신: {r.status_code} / {r.text[:150]}")
     try:
         data = r.json()
         if data.get("code") == 0:
@@ -84,26 +80,20 @@ def sk_checkin():
             "timestamp": ts,
             "sign": sign,
         }
-        r = requests.post(f"https://zonai.skport.com{path}", headers=headers)
-        # print(f"SKPORT 출석 응답: {r.status_code} / {r.text}")
-        return r
+        return requests.post(f"https://zonai.skport.com{path}", headers=headers)
 
     r = attempt(token)
     try:
         code = r.json().get("code", -1)
-        if code == 0:
+        if code in (0, 10001):
             return "✅ 엔드필드: 출석 완료"
-        elif code == 10001:
-            return "☑️ 엔드필드: 이미 출석함"
         elif code == 10000:
             new_token = sk_refresh_token()
             if new_token:
                 r2 = attempt(new_token)
                 code2 = r2.json().get("code", -1)
-                if code2 == 0:
+                if code2 in (0, 10001):
                     return "✅ 엔드필드: 출석 완료"
-                elif code2 == 10001:
-                    return "☑️ 엔드필드: 이미 출석함"
                 return f"❌ 엔드필드: 실패 ({r2.text[:80]})"
             return "❌ 엔드필드: 토큰 갱신 실패"
         else:
