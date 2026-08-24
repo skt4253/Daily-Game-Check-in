@@ -8,6 +8,8 @@ SK_TOKEN     = os.environ.get("SK_TOKEN", "")
 TG_TOKEN     = os.environ["TELEGRAM_BOT_TOKEN"]
 TG_CHAT      = os.environ["TELEGRAM_CHAT_ID"]
 
+TIMEOUT = 20
+
 HOYO_GAMES = [
     ("원신",          "https://sg-hk4e-api.hoyolab.com/event/sol/sign",           "e202102251931481", "https://act.hoyolab.com/ys/event/signin-sea-v3/index.html?act_id=e202102251931481", {}),
     ("붕괴 스타레일",  "https://sg-public-api.hoyolab.com/event/luna/os/sign",     "e202303301540311", "https://act.hoyolab.com/bbs/event/signin/hkrpg/e202303301540311.html",             {}),
@@ -24,7 +26,7 @@ SK_BASE_HEADERS = {
     "vName": "1.0.0",
 }
 
-def make_hoyo_headers(referer, extra={}):
+def make_hoyo_headers(referer, extra=None):
     return {
         "Cookie": HOYO_COOKIE,
         "Content-Type": "application/json",
@@ -33,17 +35,29 @@ def make_hoyo_headers(referer, extra={}):
         "x-rpc-language": "ko-kr",
         "Referer": referer,
         "Origin": "https://act.hoyolab.com",
-        **extra,
+        **(extra or {}),
     }
 
 def hoyo_checkin(name, url, act_id, referer, extra):
-    r = requests.post(url, headers=make_hoyo_headers(referer, extra),
-                      json={"act_id": act_id, "lang": "ko-kr"})
-    code = r.json().get("retcode", -1)
-    if code in (0, -5003):
+    try:
+        r = requests.post(url, headers=make_hoyo_headers(referer, extra),
+                          json={"act_id": act_id, "lang": "ko-kr"}, timeout=TIMEOUT)
+        j = r.json()
+    except Exception as e:
+        return f"❌ {name}: 요청 실패 ({type(e).__name__})"
+
+    code = j.get("retcode", -1)
+    msg  = j.get("message", "")
+    print(f"[DEBUG] {name}: retcode={code}, message={msg}")
+
+    if code == 0:
         return f"✅ {name}: 출석 완료"
+    elif code == -5003:
+        return f"☑️ {name}: 이미 출석함"
+    elif code == -100:
+        return f"❌ {name}: 쿠키 만료/무효 (retcode=-100) → HOYO_COOKIE 갱신 필요"
     else:
-        return f"❌ {name}: 실패 (retcode={code})"
+        return f"❌ {name}: 실패 (retcode={code}, {msg})"
 
 def sk_generate_sign(path, body, token):
     ts = str(int(time.time()))
@@ -54,20 +68,21 @@ def sk_generate_sign(path, body, token):
     return sign, ts
 
 def sk_refresh_token():
-    r = requests.get("https://zonai.skport.com/web/v1/auth/refresh",
-                     headers={**SK_BASE_HEADERS, "cred": SK_CRED})
     try:
+        r = requests.get("https://zonai.skport.com/web/v1/auth/refresh",
+                         headers={**SK_BASE_HEADERS, "cred": SK_CRED}, timeout=TIMEOUT)
         data = r.json()
         if data.get("code") == 0:
             return data["data"]["token"]
-    except Exception:
-        pass
+        print(f"[DEBUG] SK refresh 실패: {r.text[:120]}")
+    except Exception as e:
+        print(f"[DEBUG] SK refresh 예외: {type(e).__name__}")
     return None
 
 def sk_checkin():
     token = SK_TOKEN or sk_refresh_token()
     if not token:
-        return "❌ 엔드필드: 토큰 갱신 실패"
+        return "❌ 엔드필드: 토큰 갱신 실패 → SK_CRED 갱신 필요"
 
     path = "/web/v1/game/endfield/attendance"
 
@@ -80,30 +95,46 @@ def sk_checkin():
             "timestamp": ts,
             "sign": sign,
         }
-        return requests.post(f"https://zonai.skport.com{path}", headers=headers)
+        resp = requests.post(f"https://zonai.skport.com{path}", headers=headers, timeout=TIMEOUT)
+        try:
+            code = resp.json().get("code", -1)
+        except Exception:
+            code = -1
+        raw = resp.text[:80]
+        print(f"[DEBUG] 엔드필드: code={code}, raw={raw}")
+        return code, raw
 
-    r = attempt(token)
     try:
-        code = r.json().get("code", -1)
-        if code in (0, 10001):
+        code, raw = attempt(token)
+    except Exception as e:
+        return f"❌ 엔드필드: 요청 실패 ({type(e).__name__})"
+
+    if code == 0:
+        return "✅ 엔드필드: 출석 완료"
+    elif code == 10001:
+        return "☑️ 엔드필드: 이미 출석함"
+    elif code == 10000:
+        new_token = sk_refresh_token()
+        if not new_token:
+            return "❌ 엔드필드: 토큰 갱신 실패 → SK_CRED 갱신 필요"
+        try:
+            code2, raw2 = attempt(new_token)
+        except Exception as e:
+            return f"❌ 엔드필드: 요청 실패 ({type(e).__name__})"
+        if code2 == 0:
             return "✅ 엔드필드: 출석 완료"
-        elif code == 10000:
-            new_token = sk_refresh_token()
-            if new_token:
-                r2 = attempt(new_token)
-                code2 = r2.json().get("code", -1)
-                if code2 in (0, 10001):
-                    return "✅ 엔드필드: 출석 완료"
-                return f"❌ 엔드필드: 실패 ({r2.text[:80]})"
-            return "❌ 엔드필드: 토큰 갱신 실패"
-        else:
-            return f"❌ 엔드필드: 실패 ({r.text[:80]})"
-    except Exception:
-        return f"❌ 엔드필드: 응답 파싱 실패 ({r.text[:80]})"
+        elif code2 == 10001:
+            return "☑️ 엔드필드: 이미 출석함"
+        return f"❌ 엔드필드: 실패 ({raw2})"
+    else:
+        return f"❌ 엔드필드: 실패 ({raw})"
 
 def send_telegram(msg):
-    requests.post(f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage",
-                  json={"chat_id": TG_CHAT, "text": msg})
+    try:
+        requests.post(f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage",
+                      json={"chat_id": TG_CHAT, "text": msg}, timeout=TIMEOUT)
+    except Exception as e:
+        print(f"[WARN] 텔레그램 전송 실패: {type(e).__name__}")
 
 if __name__ == "__main__":
     results = []
