@@ -47,6 +47,8 @@ SK_TOKEN     = os.environ.get("SK_TOKEN", "")
 TG_TOKEN     = os.environ["TELEGRAM_BOT_TOKEN"]
 TG_CHAT      = os.environ["TELEGRAM_CHAT_ID"]
 
+TIMEOUT = 20
+
 HOYO_GAMES = [
     ("원신",          "https://sg-hk4e-api.hoyolab.com/event/sol/sign",           "e202102251931481", "https://act.hoyolab.com/ys/event/signin-sea-v3/index.html?act_id=e202102251931481", {}),
     ("붕괴 스타레일",  "https://sg-public-api.hoyolab.com/event/luna/os/sign",     "e202303301540311", "https://act.hoyolab.com/bbs/event/signin/hkrpg/e202303301540311.html",             {}),
@@ -63,7 +65,7 @@ SK_BASE_HEADERS = {
     "vName": "1.0.0",
 }
 
-def make_hoyo_headers(referer, extra={}):
+def make_hoyo_headers(referer, extra=None):
     return {
         "Cookie": HOYO_COOKIE,
         "Content-Type": "application/json",
@@ -72,19 +74,29 @@ def make_hoyo_headers(referer, extra={}):
         "x-rpc-language": "ko-kr",
         "Referer": referer,
         "Origin": "https://act.hoyolab.com",
-        **extra,
+        **(extra or {}),
     }
 
 def hoyo_checkin(name, url, act_id, referer, extra):
-    r = requests.post(url, headers=make_hoyo_headers(referer, extra),
-                      json={"act_id": act_id, "lang": "ko-kr"})
-    code = r.json().get("retcode", -1)
+    try:
+        r = requests.post(url, headers=make_hoyo_headers(referer, extra),
+                          json={"act_id": act_id, "lang": "ko-kr"}, timeout=TIMEOUT)
+        j = r.json()
+    except Exception as e:
+        return f"❌ {name}: 요청 실패 ({type(e).__name__})"
+
+    code = j.get("retcode", -1)
+    msg  = j.get("message", "")
+    print(f"[DEBUG] {name}: retcode={code}, message={msg}")
+
     if code == 0:
         return f"✅ {name}: 출석 완료"
     elif code == -5003:
         return f"☑️ {name}: 이미 출석함"
+    elif code == -100:
+        return f"❌ {name}: 쿠키 만료/무효 (retcode=-100) → HOYO_COOKIE 갱신 필요"
     else:
-        return f"❌ {name}: 실패 (retcode={code})"
+        return f"❌ {name}: 실패 (retcode={code}, {msg})"
 
 def sk_generate_sign(path, body, token):
     ts = str(int(time.time()))
@@ -95,20 +107,21 @@ def sk_generate_sign(path, body, token):
     return sign, ts
 
 def sk_refresh_token():
-    r = requests.get("https://zonai.skport.com/web/v1/auth/refresh",
-                     headers={**SK_BASE_HEADERS, "cred": SK_CRED})
     try:
+        r = requests.get("https://zonai.skport.com/web/v1/auth/refresh",
+                         headers={**SK_BASE_HEADERS, "cred": SK_CRED}, timeout=TIMEOUT)
         data = r.json()
         if data.get("code") == 0:
             return data["data"]["token"]
-    except Exception:
-        pass
+        print(f"[DEBUG] SK refresh 실패: {r.text[:120]}")
+    except Exception as e:
+        print(f"[DEBUG] SK refresh 예외: {type(e).__name__}")
     return None
 
 def sk_checkin():
     token = SK_TOKEN or sk_refresh_token()
     if not token:
-        return "❌ 엔드필드: 토큰 갱신 실패"
+        return "❌ 엔드필드: 토큰 갱신 실패 → SK_CRED 갱신 필요"
 
     path = "/web/v1/game/endfield/attendance"
 
@@ -121,34 +134,46 @@ def sk_checkin():
             "timestamp": ts,
             "sign": sign,
         }
-        return requests.post(f"https://zonai.skport.com{path}", headers=headers)
+        resp = requests.post(f"https://zonai.skport.com{path}", headers=headers, timeout=TIMEOUT)
+        try:
+            code = resp.json().get("code", -1)
+        except Exception:
+            code = -1
+        raw = resp.text[:80]
+        print(f"[DEBUG] 엔드필드: code={code}, raw={raw}")
+        return code, raw
 
-    r = attempt(token)
     try:
-        code = r.json().get("code", -1)
-        if code == 0:
+        code, raw = attempt(token)
+    except Exception as e:
+        return f"❌ 엔드필드: 요청 실패 ({type(e).__name__})"
+
+    if code == 0:
+        return "✅ 엔드필드: 출석 완료"
+    elif code == 10001:
+        return "☑️ 엔드필드: 이미 출석함"
+    elif code == 10000:
+        new_token = sk_refresh_token()
+        if not new_token:
+            return "❌ 엔드필드: 토큰 갱신 실패 → SK_CRED 갱신 필요"
+        try:
+            code2, raw2 = attempt(new_token)
+        except Exception as e:
+            return f"❌ 엔드필드: 요청 실패 ({type(e).__name__})"
+        if code2 == 0:
             return "✅ 엔드필드: 출석 완료"
-        elif code == 10001:
+        elif code2 == 10001:
             return "☑️ 엔드필드: 이미 출석함"
-        elif code == 10000:
-            new_token = sk_refresh_token()
-            if new_token:
-                r2 = attempt(new_token)
-                code2 = r2.json().get("code", -1)
-                if code2 == 0:
-                    return "✅ 엔드필드: 출석 완료"
-                elif code2 == 10001:
-                    return "☑️ 엔드필드: 이미 출석함"
-                return f"❌ 엔드필드: 실패 ({r2.text[:80]})"
-            return "❌ 엔드필드: 토큰 갱신 실패"
-        else:
-            return f"❌ 엔드필드: 실패 ({r.text[:80]})"
-    except Exception:
-        return f"❌ 엔드필드: 응답 파싱 실패 ({r.text[:80]})"
+        return f"❌ 엔드필드: 실패 ({raw2})"
+    else:
+        return f"❌ 엔드필드: 실패 ({raw})"
 
 def send_telegram(msg):
-    requests.post(f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage",
-                  json={"chat_id": TG_CHAT, "text": msg})
+    try:
+        requests.post(f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage",
+                      json={"chat_id": TG_CHAT, "text": msg}, timeout=TIMEOUT)
+    except Exception as e:
+        print(f"[WARN] 텔레그램 전송 실패: {type(e).__name__}")
 
 if __name__ == "__main__":
     results = []
@@ -167,11 +192,11 @@ if __name__ == "__main__":
 파일명 입력란에 `.github/workflows/checkin.yml` 입력 후 아래 코드 붙여넣기:
 
 ```yaml
-name: Daily Check-in
+name: Daily Game Check-in
 
 on:
   schedule:
-    - cron: '0 0 * * *'  # 매일 UTC 00:00 = KST 09:00
+    - cron: '15 19 * * *'  # 매일 UTC 19:15 = KST 04:15
   workflow_dispatch:
 
 jobs:
@@ -199,9 +224,26 @@ jobs:
 
 #### HoYoLAB 쿠키
 
+> ⚠️ Console에서 `document.cookie`를 쳐도 인증에 꼭 필요한 `ltoken_v2`는 **나오지 않습니다**. HttpOnly 속성이라 JavaScript로 읽을 수 없기 때문이며, 이 값이 빠지면 `retcode=-100`으로 실패합니다.
+
 1. **시크릿 창**에서 [hoyolab.com](https://www.hoyolab.com) 로그인
-2. F12 → **Console** 탭 → `document.cookie` 입력 후 엔터
-3. 출력된 문자열 전체 복사 → `HOYO_COOKIE`로 저장
+2. F12 → **Application** 탭
+3. 좌측 **Storage → Cookies → `https://www.hoyolab.com`** 선택
+4. 목록에서 아래 두 개를 찾아 Value를 직접 복사
+
+| 쿠키 이름 | 설명 |
+|-----------|------|
+| `ltoken_v2` | 인증 토큰 (보통 `v2_`로 시작) |
+| `ltuid_v2` | 계정 UID (숫자) |
+
+5. 아래 형식으로 조합해서 `HOYO_COOKIE`로 저장
+
+```
+ltoken_v2=v2_여기에값; ltuid_v2=여기에숫자;
+```
+
+> 💡 `ltuid_v2`가 안 보이면 `ltmid_v2`(`xxxxxxxx_mhy` 형식)를 대신 사용해도 됩니다.
+> 💡 더 확실한 방법: F12 → **Network** 탭 → 아무 요청이나 클릭 → Request Headers의 `Cookie:` 줄을 통째로 복사 (HttpOnly 값 포함)
 
 #### SKPORT 값 추출
 
@@ -236,29 +278,33 @@ repo → **Settings** → **Secrets and variables** → **Actions** → **New re
 
 | Secret 이름 | 값 |
 |------------|-----|
-| `HOYO_COOKIE` | HoYoLAB 쿠키 전체 문자열 |
+| `HOYO_COOKIE` | `ltoken_v2=...; ltuid_v2=...;` 형식 문자열 |
 | `SK_CRED` | SK_OAUTH_CRED_KEY 값 |
 | `SK_GAME_ROLE` | sk-game-role 값 (예: `3_123456_2`) |
 | `SK_TOKEN` | SK_TOKEN_CACHE_KEY 값 (선택사항) |
 | `TELEGRAM_BOT_TOKEN` | BotFather 발급 토큰 |
 | `TELEGRAM_CHAT_ID` | 텔레그램 채팅 ID |
 
+> ⚠️ 값을 붙여넣을 때 앞뒤 따옴표·공백·줄바꿈이 섞이면 인증에 실패합니다. 한 줄로만 입력하세요.
+
 ---
 
 ### Step 5. 테스트 실행
 
-repo → **Actions** → **Daily Check-in** → **Run workflow** → **Run workflow**
+repo → **Actions** → **Daily Game Check-in** → **Run workflow** → **Run workflow**
 
 ---
 
 ## ⏰ 실행 시간
 
-매일 **오전 9시 (KST)** 자동 실행됩니다.
+매일 **새벽 4시 15분 (KST)** 자동 실행됩니다.
+
+HoYoLAB 출석 기준 시각은 KST 01:00에 초기화되므로 그 이후 시간대라면 문제없습니다. 시간을 바꾸려면 `checkin.yml`의 cron 값을 UTC 기준으로 수정하세요. (GitHub Actions 스케줄은 서버 부하에 따라 수 분~수십 분 지연될 수 있습니다.)
 
 ## 📱 알림 예시
 
 ```
-🎮 일일 출석체크 (2026-03-22 09:00 KST)
+🎮 일일 출석체크 (2026-03-22 04:15 KST)
 
 ✅ 원신: 출석 완료
 ✅ 붕괴 스타레일: 출석 완료
@@ -266,9 +312,19 @@ repo → **Actions** → **Daily Check-in** → **Run workflow** → **Run workf
 ✅ 엔드필드: 출석 완료
 ```
 
+## 🔧 문제 해결
+
+| 증상 | 원인 및 조치 |
+|------|--------------|
+| `retcode=-100` | `ltoken_v2`가 누락됐거나 만료됨. Step 3 방식으로 재추출 |
+| 비밀번호 변경 후 전부 실패 | 기존 토큰이 모두 무효화됨. 재로그인 후 쿠키 재발급 |
+| 엔드필드 `토큰 갱신 실패` | `SK_CRED` 만료. 재로그인 후 갱신 |
+| 알림이 아예 안 옴 | Actions 로그에서 secret 누락 여부 확인 |
+
 ## ⚠️ 주의사항
 
 - 아시아 서버 기준으로 작성되었습니다
-- SKPORT `SK_CRED` 값은 로그아웃 시 만료되므로 재로그인 후 갱신 필요
-- HoYoLAB 쿠키도 주기적으로 만료될 수 있으므로 출석 실패 알림 시 갱신 필요
+- **HoYoLAB 비밀번호를 변경하거나 로그아웃하면 `ltoken_v2`가 즉시 무효화됩니다.** 이 경우 쿠키를 새로 발급받아야 합니다
+- SKPORT `SK_CRED` 값도 로그아웃 시 만료되므로 재로그인 후 갱신 필요
+- HoYoLAB 쿠키는 주기적으로 만료될 수 있으므로 출석 실패 알림 시 갱신 필요
 - **Secrets에 저장된 값은 절대 외부에 공유하지 마세요**
