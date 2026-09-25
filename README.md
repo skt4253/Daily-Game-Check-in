@@ -1,6 +1,6 @@
 # 🎮 게임 자동 출석체크
 
-HoYoLAB(원신, 붕괴 스타레일, 젠레스 존 제로)와 SKPORT(명일방주 엔드필드) 출석체크를 GitHub Actions로 매일 자동 실행하고 텔레그램으로 결과를 알려주는 스크립트입니다.
+HoYoLAB(원신, 붕괴 스타레일, 젠레스 존 제로)와 SKPORT(명일방주 엔드필드) 출석체크를 GitHub Actions로 매일 자동 실행하고 디스코드로 결과를 알려주는 스크립트입니다.
 
 ### "컴퓨터와 출석체크 앱조차 켜기 귀찮은 사람들을 위한 스크립트"
 
@@ -16,7 +16,7 @@ HoYoLAB(원신, 붕괴 스타레일, 젠레스 존 제로)와 SKPORT(명일방�
 ## 📋 사전 준비
 
 - GitHub 계정
-- 텔레그램 계정 (단순 알림용이라 없어도 무방)
+- 디스코드 계정 (단순 알림용이라 없어도 무방)
 - 위 게임들의 계정 (하는 게임 계정만)
 
 ---
@@ -44,8 +44,7 @@ HOYO_COOKIE  = os.environ["HOYO_COOKIE"]
 SK_CRED      = os.environ["SK_CRED"]
 SK_GAME_ROLE = os.environ["SK_GAME_ROLE"]
 SK_TOKEN     = os.environ.get("SK_TOKEN", "")
-TG_TOKEN     = os.environ["TELEGRAM_BOT_TOKEN"]
-TG_CHAT      = os.environ["TELEGRAM_CHAT_ID"]
+DISCORD_WEBHOOK = os.environ["DISCORD_WEBHOOK_URL"]
 
 TIMEOUT = 20
 
@@ -168,12 +167,13 @@ def sk_checkin():
     else:
         return f"❌ 엔드필드: 실패 ({raw})"
 
-def send_telegram(msg):
+def send_discord(msg):
     try:
-        requests.post(f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage",
-                      json={"chat_id": TG_CHAT, "text": msg}, timeout=TIMEOUT)
+        r = requests.post(DISCORD_WEBHOOK, json={"content": msg}, timeout=TIMEOUT)
+        if not r.ok:
+            print(f"[WARN] 디스코드 전송 실패: HTTP {r.status_code}")
     except Exception as e:
-        print(f"[WARN] 텔레그램 전송 실패: {type(e).__name__}")
+        print(f"[WARN] 디스코드 전송 실패: {type(e).__name__}")
 
 if __name__ == "__main__":
     results = []
@@ -185,7 +185,7 @@ if __name__ == "__main__":
     KST = timezone(timedelta(hours=9))
     now = datetime.now(KST).strftime("%Y-%m-%d %H:%M KST")
     msg = f"🎮 일일 출석체크 ({now})\n\n" + "\n".join(results)
-    send_telegram(msg)
+    send_discord(msg)
     print(msg)
 ```
 
@@ -214,8 +214,7 @@ jobs:
           SK_CRED: ${{ secrets.SK_CRED }}
           SK_GAME_ROLE: ${{ secrets.SK_GAME_ROLE }}
           SK_TOKEN: ${{ secrets.SK_TOKEN }}
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
 ```
 
 ---
@@ -263,12 +262,13 @@ console.log('SK_CRED:', cred);
 3. 출력된 값 → `SK_CRED`로 저장
 4. F12 → **Network** 탭 → 페이지 새로고침 → `attendance` 요청 클릭 → Request Headers에서 `sk-game-role` 값 복사 → `SK_GAME_ROLE`로 저장 (형식: `3_숫자_2`)
 
-#### 텔레그램 봇
+#### 디스코드 웹훅
 
-1. 텔레그램에서 **@BotFather** → `/newbot` → 봇 생성
-2. 발급된 토큰 → `TELEGRAM_BOT_TOKEN`으로 저장
-3. 봇에게 메시지 전송 후 `https://api.telegram.org/bot{토큰}/getUpdates` 접속
-4. `"chat":{"id":` 뒤 숫자 → `TELEGRAM_CHAT_ID`로 저장
+1. 알림 받을 디스코드 채널 → **⚙️ 채널 편집** → **연동** → **웹후크 만들기**
+2. 생성된 웹훅 클릭 → 이름 지정(선택) → **웹후크 URL 복사** → **변경사항 저장**
+3. 복사한 URL → `DISCORD_WEBHOOK_URL`로 저장
+
+> ⚠️ 웹훅 URL만 있으면 누구나 해당 채널에 메시지를 보낼 수 있으니 Secret에만 저장하세요. 유출 시 웹훅을 삭제하고 새로 만들면 됩니다.
 
 ---
 
@@ -282,8 +282,7 @@ repo → **Settings** → **Secrets and variables** → **Actions** → **New re
 | `SK_CRED` | SK_OAUTH_CRED_KEY 값 |
 | `SK_GAME_ROLE` | sk-game-role 값 (예: `3_123456_2`) |
 | `SK_TOKEN` | SK_TOKEN_CACHE_KEY 값 (선택사항) |
-| `TELEGRAM_BOT_TOKEN` | BotFather 발급 토큰 |
-| `TELEGRAM_CHAT_ID` | 텔레그램 채팅 ID |
+| `DISCORD_WEBHOOK_URL` | 디스코드 웹훅 URL |
 
 > ⚠️ 값을 붙여넣을 때 앞뒤 따옴표·공백·줄바꿈이 섞이면 인증에 실패합니다. 한 줄로만 입력하세요.
 

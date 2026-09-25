@@ -5,8 +5,7 @@ HOYO_COOKIE  = os.environ["HOYO_COOKIE"]
 SK_CRED      = os.environ["SK_CRED"]
 SK_GAME_ROLE = os.environ["SK_GAME_ROLE"]
 SK_TOKEN     = os.environ.get("SK_TOKEN", "")
-TG_TOKEN     = os.environ["TELEGRAM_BOT_TOKEN"]
-TG_CHAT      = os.environ["TELEGRAM_CHAT_ID"]
+DISCORD_WEBHOOK = os.environ["DISCORD_WEBHOOK_URL"]
 
 TIMEOUT = 20
 
@@ -129,12 +128,13 @@ def sk_checkin():
     else:
         return f"❌ 엔드필드: 실패 ({raw})"
 
-def send_telegram(msg):
+def send_discord(msg):
     try:
-        requests.post(f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage",
-                      json={"chat_id": TG_CHAT, "text": msg}, timeout=TIMEOUT)
+        r = requests.post(DISCORD_WEBHOOK, json={"content": msg}, timeout=TIMEOUT)
+        if not r.ok:
+            print(f"[WARN] 디스코드 전송 실패: HTTP {r.status_code}")
     except Exception as e:
-        print(f"[WARN] 텔레그램 전송 실패: {type(e).__name__}")
+        print(f"[WARN] 디스코드 전송 실패: {type(e).__name__}")
 
 if __name__ == "__main__":
     results = []
@@ -146,5 +146,5 @@ if __name__ == "__main__":
     KST = timezone(timedelta(hours=9))
     now = datetime.now(KST).strftime("%Y-%m-%d %H:%M KST")
     msg = f"🎮 일일 출석체크 ({now})\n\n" + "\n".join(results)
-    send_telegram(msg)
+    send_discord(msg)
     print(msg)
