@@ -5,6 +5,10 @@ on:
     - cron: '15 19 * * *'  # 매일 UTC 19:15 = KST 04:15
   workflow_dispatch:
 
+permissions:
+  contents: read
+  actions: write  # 워크플로 재활성화(keepalive)용
+
 jobs:
   checkin:
     runs-on: ubuntu-latest
@@ -21,3 +25,9 @@ jobs:
           SK_GAME_ROLE: ${{ secrets.SK_GAME_ROLE }}
           SK_TOKEN: ${{ secrets.SK_TOKEN }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+      # 60일 비활성 자동 비활성화 방지: 실행될 때마다 자기 자신을 다시 활성화
+      - name: Keep workflow alive
+        if: always()
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/checkin.yml/enable"
+        env:
+          GH_TOKEN: ${{ github.token }}
