@@ -2,7 +2,7 @@ name: Daily Game Check-in
 
 on:
   schedule:
-    - cron: '15 19 * * *'  # 매일 UTC 19:15 = KST 04:15
+    - cron: '30 16 * * *'  # 매일 UTC 16:30 = KST 01:30
   workflow_dispatch:
 
 permissions:
